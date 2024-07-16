@@ -47,8 +47,7 @@ mod tests {
   use base64::encode as base64_encode;
   use bitcoin::address::Payload;
   use bitcoin::consensus::encode::serialize_hex;
-  use bitcoin::secp256k1::PublicKey;
-  use bitcoin::{Address, Script, ScriptBuf};
+  use bitcoin::{Address, PublicKey, Script, ScriptBuf};
   use hex::encode as hex_encode;
 
   #[test]
@@ -107,8 +106,8 @@ mod tests {
   fn test_from_p2pk_script() {
     // let script = "04c863781e34ee29d96f493a002de08c27cdfb79268d774b566100e9ae2d06bdfe4846faaa1fbe995fc969f64b503acc83203ea006f00b855355dbfb6f54b93211";
     let script = "41049434a2dd7c5b82df88f578f8d7fd14e8d36513aaa9c003eb5bd6cb56065e44b7e0227139e8a8e68e7de0a4ed32b8c90edc9673b8a7ea541b52f2a22196f7b8cfac";
-    let script = "210368656c6c6f20776f726c64212068656c6c6f2052756e65212020202020202020ac";
-    let script = "21036c6565662c206f6e7464656b2c2067656e6965742e2e2e202020202020202020ac";
+    // let script = "210368656c6c6f20776f726c64212068656c6c6f2052756e65212020202020202020ac";
+    // let script = "21036c6565662c206f6e7464656b2c2067656e6965742e2e2e202020202020202020ac";
     //let script = "210328e516b6a660d68009c57826bef9a5733b4b138dd125953175ee4664aca9fd0cac";
     // let script = &script[2..];
 
@@ -134,9 +133,14 @@ mod tests {
 
   #[test]
   fn test_from_p2pk_pubkey() {
-    let pubkey = "04f254e36949ec1a7f6e9548f16d4788fb321f429b2c7d2eb44480b2ed0195cbf0c3875c767fe8abb2df6827c21392ea5cc934240b9ac46c6a56d2bd13dd0b17a9";
-    let pubkey = PublicKey::from_str(pubkey).unwrap();
-    println!("{}", pubkey.to_string())
+    let pubkey_str = "04f254e36949ec1a7f6e9548f16d4788fb321f429b2c7d2eb44480b2ed0195cbf0c3875c767fe8abb2df6827c21392ea5cc934240b9ac46c6a56d2bd13dd0b17a9";
+    //let pubkey = "41049434a2dd7c5b82df88f578f8d7fd14e8d36513aaa9c003eb5bd6cb56065e44b7e0227139e8a8e68e7de0a4ed32b8c90edc9673b8a7ea541b52f2a22196f7b8cfac";
+    let pubkey = PublicKey::from_str(pubkey_str).unwrap();
+    println!("{}", pubkey.to_string());
+
+    let script_buf = ScriptBuf::from_hex(pubkey_str).unwrap();
+
+    println!("{:?}", script_buf.is_p2pk());
   }
 
   #[test]
