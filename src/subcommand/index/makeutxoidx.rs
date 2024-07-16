@@ -71,10 +71,16 @@ fn gen_utxo_data_from_csv_line(line: &str) -> (String, RichAddress) {
   };
   if rich_address.script_type == "p2pk" {
     let script = str_list[6].to_string();
-    if let Ok(pubkey) = PublicKey::from_str(script.as_str()) {
-      // there are invalid p2pk scripts
-      rich_address.address = Some(pubkey.to_string());
-    }
+    let pubkey = match PublicKey::from_str(script.as_str()) {
+      Ok(pubkey) => pubkey,
+      Err(_) => {
+        // is script
+        let script_buf = ScriptBuf::from_hex(script.as_str()).unwrap();
+        script_buf.p2pk_public_key().unwrap()
+      }
+    };
+
+    rich_address.address = Some(pubkey.to_string());
   };
 
   (output, rich_address)
