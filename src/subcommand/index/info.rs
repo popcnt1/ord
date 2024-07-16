@@ -45,6 +45,7 @@ impl Info {
 mod tests {
   use super::*;
   use base64::encode as base64_encode;
+  use bitcoin::address::Payload;
   use bitcoin::consensus::encode::serialize_hex;
   use bitcoin::secp256k1::PublicKey;
   use bitcoin::{Address, Script, ScriptBuf};
@@ -151,8 +152,9 @@ mod tests {
 
   #[test]
   fn test_script_type() {
-    let script = "21036c6565662c206f6e7464656b2c2067656e6965742e2e2e202020202020202020ac";
+    let script = "0014f29f9316f0f1e48116958216a8babd353b491dae";
     let script_buf = ScriptBuf::from_hex(&script).unwrap();
+    let payload = Payload::from_script(&script_buf).unwrap();
     println!("{:?}", script_buf.is_p2pk());
     println!(
       "{:?}",
