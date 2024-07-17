@@ -113,8 +113,96 @@ ord_count: 73026188， bloom_filter_positive_count: 65111901, empty_address_coun
 update satpoint of inscriptions:
 
 ```shell
-ord --index=~/btc/ord/index/index.redb --cookie-file=~/bitcoincore/.cookie index export --output ~/btc/ord/dump/ord_0_852202 --gt-sequence 72370129 --input ~/btc/ord/dump/ord_0_849667 --changes-output ~/btc/ord/dump/ord_0_852202_from_849667_changes --utxo-source ~/btc/utxo/utxo_address_0_852202.redb
-```
+ord --index=~/btc/ord/index/index.redb --cookie-file=~/bitcoincore/.cookie index export --output ~/btc/ord/dump/ord_0_852202_new --gt-sequence 73026187 --old-output ~/btc/ord/ord_0_852202 --changes-path ~/tmp/ord_0_852202_from_old_changes --outpoint-address-map ~/btc/ord/index/outpoint_addr_852202.redb
+1048576 inscriptions updated. cost: 237.622542092s
+2097152 inscriptions updated. cost: 324.740527977s
+3145728 inscriptions updated. cost: 372.695388817s
+4194304 inscriptions updated. cost: 400.672350997s
+5242880 inscriptions updated. cost: 416.86149544s
+6291456 inscriptions updated. cost: 427.880470732s
+7340032 inscriptions updated. cost: 437.439401734s
+8388608 inscriptions updated. cost: 447.416631946s
+9437184 inscriptions updated. cost: 460.222556727s
+10485760 inscriptions updated. cost: 470.393145964s
+11534336 inscriptions updated. cost: 484.28228896s
+12582912 inscriptions updated. cost: 495.830301894s
+13631488 inscriptions updated. cost: 507.849336365s
+14680064 inscriptions updated. cost: 520.52015047s
+15728640 inscriptions updated. cost: 531.210177208s
+16777216 inscriptions updated. cost: 540.503770227s
+17825792 inscriptions updated. cost: 549.803655255s
+18874368 inscriptions updated. cost: 559.268274894s
+19922944 inscriptions updated. cost: 567.138801158s
+20971520 inscriptions updated. cost: 574.57760033s
+22020096 inscriptions updated. cost: 581.889983895s
+23068672 inscriptions updated. cost: 589.169520285s
+24117248 inscriptions updated. cost: 596.090472531s
+25165824 inscriptions updated. cost: 602.902854967s
+26214400 inscriptions updated. cost: 609.732223068s
+27262976 inscriptions updated. cost: 616.417413215s
+28311552 inscriptions updated. cost: 623.95776267s
+29360128 inscriptions updated. cost: 630.548642191s
+30408704 inscriptions updated. cost: 636.726221248s
+31457280 inscriptions updated. cost: 642.873686036s
+32505856 inscriptions updated. cost: 649.486193311s
+33554432 inscriptions updated. cost: 656.565744298s
+34603008 inscriptions updated. cost: 663.205379624s
+35651584 inscriptions updated. cost: 681.907996744s
+36700160 inscriptions updated. cost: 689.630912616s
+37748736 inscriptions updated. cost: 697.465472464s
+38797312 inscriptions updated. cost: 704.019503851s
+39845888 inscriptions updated. cost: 710.782429966s
+40894464 inscriptions updated. cost: 717.35976226s
+41943040 inscriptions updated. cost: 723.759631185s
+42991616 inscriptions updated. cost: 730.918411814s
+44040192 inscriptions updated. cost: 737.612148001s
+45088768 inscriptions updated. cost: 745.274183424s
+46137344 inscriptions updated. cost: 753.759406651s
+47185920 inscriptions updated. cost: 762.972012105s
+48234496 inscriptions updated. cost: 770.700050456s
+49283072 inscriptions updated. cost: 778.142045796s
+50331648 inscriptions updated. cost: 786.015981036s
+51380224 inscriptions updated. cost: 793.598772531s
+52428800 inscriptions updated. cost: 801.968801169s
+53477376 inscriptions updated. cost: 810.304994653s
+54525952 inscriptions updated. cost: 820.625026251s
+55574528 inscriptions updated. cost: 828.129822228s
+56623104 inscriptions updated. cost: 835.098337945s
+57671680 inscriptions updated. cost: 843.780403992s
+58720256 inscriptions updated. cost: 851.565550652s
+59768832 inscriptions updated. cost: 858.80737131s
+60817408 inscriptions updated. cost: 869.136671323s
+61865984 inscriptions updated. cost: 885.884138651s
+62914560 inscriptions updated. cost: 896.817508306s
+63963136 inscriptions updated. cost: 909.545363752s
+65011712 inscriptions updated. cost: 922.203111506s
+66060288 inscriptions updated. cost: 933.266336701s
+67108864 inscriptions updated. cost: 945.316747932s
+68157440 inscriptions updated. cost: 961.714637953s
+69206016 inscriptions updated. cost: 975.219181426s
+70254592 inscriptions updated. cost: 987.338577109s
+71303168 inscriptions updated. cost: 1005.120266231s
+72351744 inscriptions updated. cost: 1020.644723912s
+73026188 inscriptions updated. cost: 1027.616991953s
+job done. 0 recorded(cursed: 0, unbound: 0, non-standard: 0, 0-body: 0) exported in 1027.619315327s. 0 inscriptions(<= gt_sequence included, >= lt_sequence not included) in block heights: [0,852203)
+Percentiles distribution of inscription body size(>0), min=0, max=0, mean=0.00, stdev=0.00:
+|   1.00th=[0] (samples: 0)
+|   5.00th=[0] (samples: 0)
+|  10.00th=[0] (samples: 0)
+|  20.00th=[0] (samples: 0)
+|  30.00th=[0] (samples: 0)
+|  40.00th=[0] (samples: 0)
+|  50.00th=[0] (samples: 0)
+|  60.00th=[0] (samples: 0)
+|  70.00th=[0] (samples: 0)
+|  80.00th=[0] (samples: 0)
+|  90.00th=[0] (samples: 0)
+|  95.00th=[0] (samples: 0)
+|  99.00th=[0] (samples: 0)
+|  99.50th=[0] (samples: 0)
+|  99.90th=[0] (samples: 0)
+|  99.95th=[0] (samples: 0)
+|  99.99th=[0] (samples: 0)```
 
 ## Pre-requisites
 
@@ -165,7 +253,6 @@ pub struct InscriptionOutput {
   pub parent: Option<Vec<InscriptionId>>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub pointer: Option<u64>,
-  pub is_p2pk: bool, // If true, address field is script
   pub address: String,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub rune: Option<u128>,

@@ -166,3 +166,16 @@ fn derive_utxo_info(line: &str) -> (OutPoint, String, String, String) {
     script,
   )
 }
+
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  #[test]
+  fn test_derive_utxo_info() {
+    let line = "25051398,41a3e9ee1910a2d40dd217bbc9fd3638c40d13c8fdda8a0aa9d49a2b4a199422,2,774743,0,5376,036c6565662c206f6e7464656b2c2067656e6965742e2e2e202020202020202020,p2pk,";
+    let (outpoint, address, script_type, script) = derive_utxo_info(line);
+    println!("{:?}, {}, {}, {}", outpoint, address, script_type, script);
+    println!("{}", address.is_empty());
+  }
+}

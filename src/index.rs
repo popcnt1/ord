@@ -99,34 +99,6 @@ pub struct InscriptionOutput {
   pub parent: Option<Vec<InscriptionId>>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub pointer: Option<u64>,
-  pub is_p2pk: bool, // If true, address is p2pkh from pubkey
-  pub address: String,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub rune: Option<u128>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InscriptionOutputVersion2 {
-  pub sequence_number: u32,
-  pub inscription_number: i32,
-  pub id: InscriptionId,
-  // ord crate has different version of bitcoin dependency, using string for compatibility
-  pub satpoint_outpoint: String, // txid:vout
-  pub satpoint_offset: u64,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub body: Option<Vec<u8>>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub content_encoding: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub content_type: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub metadata: Option<Vec<u8>>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub metaprotocol: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub parent: Option<Vec<InscriptionId>>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub pointer: Option<u64>,
   pub address: String, // address is p2pkh from pubkey if it's p2pk
   #[serde(skip_serializing_if = "Option::is_none")]
   pub rune: Option<u128>,
@@ -764,17 +736,17 @@ impl Index {
       for line in old_output_reader.by_ref().lines() {
         let line = line?;
 
-        let old_ord: InscriptionOutput = serde_json::from_str(&line).unwrap();
+        let mut inscription_output: InscriptionOutput = serde_json::from_str(&line).unwrap();
         let new_satpoint = SatPoint::load(
           *num_to_satpoint_table
-            .get(old_ord.sequence_number)?
+            .get(inscription_output.sequence_number)?
             .unwrap()
             .value(),
         );
         let new_address = if new_satpoint.outpoint == unbound_outpoint() {
           "unbound".to_string()
         } else {
-          let output_bytes = bcs::to_bytes(&new_satpoint.outpoint.to_string()).unwrap();
+          let output_bytes = bcs::to_bytes(&new_satpoint.outpoint).unwrap();
           let address_ret = satpoint_to_address_table.get(output_bytes.as_slice())?;
           if address_ret.is_none() {
             "non-standard".to_string()
@@ -783,38 +755,30 @@ impl Index {
           }
         };
 
-        if new_satpoint.outpoint.to_string() != old_ord.satpoint_outpoint
-          || new_address != old_ord.address
-          || new_satpoint.offset != old_ord.satpoint_offset
+        if new_satpoint.outpoint.to_string() != inscription_output.satpoint_outpoint
+          || new_address != inscription_output.address
+          || new_satpoint.offset != inscription_output.satpoint_offset
         {
-          let old_satpoint = format!("{}:{}", old_ord.satpoint_outpoint, old_ord.satpoint_offset);
+          let old_satpoint = format!(
+            "{}:{}",
+            inscription_output.satpoint_outpoint, inscription_output.satpoint_offset
+          );
           let line = format!(
             "sequence_number: {}, old_satpoint: {}, new_satpoint: {}, old_address: {}, new_address: {}",
-            old_ord.sequence_number,
+            inscription_output.sequence_number,
             old_satpoint,
             new_satpoint.to_string(),
-            old_ord.address,
+            inscription_output.address,
             new_address
           );
           writeln!(changes_writer, "{}", line).expect("unable to write data to file");
         }
-        let new_ord = InscriptionOutputVersion2 {
-          sequence_number: old_ord.sequence_number,
-          inscription_number: old_ord.inscription_number,
-          id: old_ord.id,
-          satpoint_outpoint: new_satpoint.outpoint.to_string(),
-          satpoint_offset: new_satpoint.offset,
-          body: old_ord.body,
-          content_encoding: old_ord.content_encoding,
-          content_type: old_ord.content_type,
-          metadata: old_ord.metadata,
-          metaprotocol: old_ord.metaprotocol,
-          parent: old_ord.parent,
-          pointer: old_ord.pointer,
-          address: new_address,
-          rune: old_ord.rune,
-        };
-        let line = serde_json::to_string(&new_ord).expect("Unable to serialize inscription");
+        inscription_output.satpoint_outpoint = new_satpoint.outpoint.to_string();
+        inscription_output.satpoint_offset = new_satpoint.offset;
+        inscription_output.address = new_address;
+
+        let line =
+          serde_json::to_string(&inscription_output).expect("Unable to serialize inscription");
         writeln!(output_writer, "{}", line).expect("unable to write data to file");
         updated_count += 1;
         if updated_count % (1024 * 1024) == 0 {
@@ -870,7 +834,7 @@ impl Index {
         unbound_count += 1;
         "unbound".to_string()
       } else {
-        let output_bytes = bcs::to_bytes(&satpoint.outpoint.to_string()).unwrap();
+        let output_bytes = bcs::to_bytes(&satpoint.outpoint).unwrap();
         let address_ret = satpoint_to_address_table.get(output_bytes.as_slice())?;
         if address_ret.is_none() {
           non_standard_count += 1;
@@ -904,7 +868,7 @@ impl Index {
 
       // make inscription
       let inscription_src = self.get_inscription_by_id(entry.id)?.unwrap();
-      let inscription_out = InscriptionOutputVersion2 {
+      let inscription_out = InscriptionOutput {
         sequence_number,
         inscription_number: entry.inscription_number,
         id: entry.id,
