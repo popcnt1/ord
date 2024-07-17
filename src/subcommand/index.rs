@@ -22,7 +22,7 @@ impl IndexSubcommand {
     match self {
       Self::Export(export) => export.run(settings),
       Self::Info(info) => info.run(settings),
-      Self::UTXO(makeutxoidx) => makeutxoidx.run(),
+      Self::UTXO(makeutxoidx) => makeutxoidx.run(settings),
       Self::Update => update::run(settings),
     }
   }

@@ -5,11 +5,13 @@ pub(crate) struct Export {
   #[arg(long, help = "Write export to <output>")]
   output: String,
   #[arg(long, help = "old output")]
-  input: Option<String>,
-  #[arg(long, help = "Changes output")]
-  changes_output: Option<String>,
-  #[arg(long, help = "utxo:address map from <utxo_source>")]
-  utxo_source: String,
+  old_output: Option<String>,
+  #[arg(long, help = "old output changes")]
+  changes_path: Option<String>,
+  #[arg(long, help = "utxo:address map from utxo list")]
+  outpoint_address_map: String,
+  #[arg(long, help = "Update all old ord no matter satpoint is changed")]
+  update_all: Option<bool>,
   #[arg(long, help = "Export sequence number > <gt_sequence>")]
   gt_sequence: Option<u32>,
   #[arg(long, help = "Export sequence number < <lt_sequence>")]
@@ -23,9 +25,10 @@ impl Export {
     index.update()?;
     index.export(
       &self.output,
-      self.input,
-      self.changes_output,
-      &self.utxo_source,
+      self.old_output,
+      self.changes_path,
+      &self.outpoint_address_map,
+      self.update_all.unwrap_or(false),
       self.gt_sequence,
       self.lt_sequence,
     )?;

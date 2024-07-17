@@ -117,18 +117,6 @@ impl Rune {
   }
 }
 
-pub fn from_commitment(bytes: Option<Vec<u8>>) -> Option<u128> {
-    let bytes = match bytes {
-        Some(bytes) => bytes,
-        None => return None,
-    };
-  let mut arr = [0u8; 16];
-  for (place, element) in arr.iter_mut().zip(bytes.iter()) {
-    *place = *element;
-  }
-  Some(u128::from_le_bytes(arr))
-}
-
 impl Display for Rune {
   fn fmt(&self, f: &mut Formatter) -> fmt::Result {
     let mut n = self.0;
@@ -196,8 +184,20 @@ impl std::error::Error for Error {}
 
 #[cfg(test)]
 mod tests {
-  use rand::Rng;
   use super::*;
+  use rand::Rng;
+
+  fn from_commitment(bytes: Option<Vec<u8>>) -> Option<u128> {
+    let bytes = match bytes {
+      Some(bytes) => bytes,
+      None => return None,
+    };
+    let mut arr = [0u8; 16];
+    for (place, element) in arr.iter_mut().zip(bytes.iter()) {
+      *place = *element;
+    }
+    Some(u128::from_le_bytes(arr))
+  }
 
   #[test]
   fn converts_from_commitment() {
@@ -206,10 +206,16 @@ mod tests {
       let commitment = rune.commitment();
       let recovered_rune = from_commitment(Some(commitment.clone())).unwrap();
       assert_eq!(r, recovered_rune);
-      println!("r: {}, commitment: {:?}, recovered_rune: {}", r, commitment.clone(), recovered_rune);
+      println!(
+        "r: {}, commitment: {:?}, recovered_rune: {}",
+        r,
+        commitment.clone(),
+        recovered_rune
+      );
     }
     let mut rng = rand::thread_rng();
-    for _ in 0..2 { // replace with the number of tests you want to run
+    for _ in 0..2 {
+      // replace with the number of tests you want to run
       case(rng.gen());
     }
     case(0);
@@ -225,7 +231,8 @@ mod tests {
       assert_eq!(r, recovered_rune);
     }
     let mut rng = rand::thread_rng();
-    for _ in 0..1000 { // replace with the number of tests you want to run
+    for _ in 0..1000 {
+      // replace with the number of tests you want to run
       case(rng.gen());
     }
     case(0);
@@ -241,7 +248,8 @@ mod tests {
       assert_eq!(rune.0, recovered_rune.0);
     }
     let mut rng = rand::thread_rng();
-    for _ in 0..1000 { // replace with the number of tests you want to run
+    for _ in 0..1000 {
+      // replace with the number of tests you want to run
       case(rng.gen());
     }
     case(0);

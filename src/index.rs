@@ -74,14 +74,8 @@ define_table! { STATISTIC_TO_COUNT, u64, u64 }
 define_table! { TRANSACTION_ID_TO_RUNE, &TxidValue, u128 }
 define_table! { TRANSACTION_ID_TO_TRANSACTION, &TxidValue, &[u8] }
 define_table! { WRITE_TRANSACTION_STARTING_BLOCK_COUNT_TO_TIMESTAMP, u32, u128 }
-pub(crate) const UTXO_INDEX_TABLE: TableDefinition<&[u8], &[u8]> =
-  TableDefinition::new("utxo_index");
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct RichAddress {
-  pub script_type: String,
-  pub address: Option<String>,
-}
+pub(crate) const SATPOINT_TO_ADDRESS: TableDefinition<&[u8], &[u8]> =
+  TableDefinition::new("satpoint_to_address");
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InscriptionOutput {
@@ -105,8 +99,35 @@ pub struct InscriptionOutput {
   pub parent: Option<Vec<InscriptionId>>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub pointer: Option<u64>,
-  pub is_p2pk: bool, // If true, address field is script
+  pub is_p2pk: bool, // If true, address is p2pkh from pubkey
   pub address: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub rune: Option<u128>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct InscriptionOutputVersion2 {
+  pub sequence_number: u32,
+  pub inscription_number: i32,
+  pub id: InscriptionId,
+  // ord crate has different version of bitcoin dependency, using string for compatibility
+  pub satpoint_outpoint: String, // txid:vout
+  pub satpoint_offset: u64,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub body: Option<Vec<u8>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub content_encoding: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub content_type: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub metadata: Option<Vec<u8>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub metaprotocol: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub parent: Option<Vec<InscriptionId>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub pointer: Option<u64>,
+  pub address: String, // address is p2pkh from pubkey if it's p2pk
   #[serde(skip_serializing_if = "Option::is_none")]
   pub rune: Option<u128>,
 }
@@ -232,7 +253,7 @@ impl<T> BitcoinCoreRpcResultExt<T> for Result<T, bitcoincore_rpc::Error> {
 
 pub struct Index {
   pub(crate) client: Client,
-  database: Database,
+  pub(crate) database: Database,
   durability: redb::Durability,
   event_sender: Option<tokio::sync::mpsc::Sender<Event>>,
   first_inscription_height: u32,
@@ -704,20 +725,21 @@ impl Index {
   pub(crate) fn export(
     &self,
     output_filename: &String,
-    input_filename: Option<String>,
+    old_output_filename: Option<String>,
     changes_filename: Option<String>,
-    utxo_filename: &String,
+    outpoint_address_map_filename: &String,
+    _update_all: bool,
     gt_sequence: Option<u32>,
     lt_sequence: Option<u32>,
   ) -> Result {
     let start_time = Instant::now();
 
-    let mut writer = BufWriter::new(fs::File::create(output_filename)?);
+    let mut output_writer = BufWriter::new(fs::File::create(output_filename)?);
 
-    let utxo_databse = Database::open(utxo_filename)?;
+    let outpoint_address_db = Database::open(outpoint_address_map_filename)?;
+    let outpoint_address_rtx = outpoint_address_db.begin_read()?;
+
     let rtx = self.database.begin_read()?;
-    let utxo_rtx = utxo_databse.begin_read()?;
-
     let blocks_indexed = rtx
       .open_table(HEIGHT_TO_BLOCK_HEADER)?
       .range(0..)?
@@ -726,85 +748,96 @@ impl Index {
       .map(|(height, _header)| height.value() + 1)
       .unwrap_or(0);
     writeln!(
-      writer,
+      output_writer,
       "# export at block height {}, inscriptions in: [0, {})",
       blocks_indexed, blocks_indexed
     )?;
-
-    let satpoint_table = rtx.open_table(SEQUENCE_NUMBER_TO_SATPOINT)?;
-    let seqnum_table = rtx.open_table(SEQUENCE_NUMBER_TO_INSCRIPTION_ENTRY)?;
-    let utxo_table = utxo_rtx.open_table(UTXO_INDEX_TABLE)?;
+    let num_to_satpoint_table = rtx.open_table(SEQUENCE_NUMBER_TO_SATPOINT)?;
+    let num_to_inscription_table = rtx.open_table(SEQUENCE_NUMBER_TO_INSCRIPTION_ENTRY)?;
+    let satpoint_to_address_table = outpoint_address_rtx.open_table(SATPOINT_TO_ADDRESS)?;
     let seq_ins_table = rtx.open_table(SEQUENCE_NUMBER_TO_INSCRIPTION_ENTRY)?;
 
-    // export stats counter
-    let mut recorded: u64 = 0;
-    let mut unbound_count: u64 = 0;
-    let mut non_standard_count: u64 = 0;
-    let mut cursed_count: u64 = 0;
-    let mut p2pk_count: u64 = 0;
-    let mut total_num: u64 = 0;
-    let mut body_none_count: u64 = 0;
-    let report_interval = 1024 * 1024;
-    let mut body_size_hist = Histogram::<u64>::new_with_bounds(1, 4 * 1024 * 1024, 2).unwrap();
-
     // update ordinals satpoint & address if needed
-    if let Some(input_filename) = input_filename {
+    if let Some(old_output) = old_output_filename {
+      let mut updated_count: u64 = 0;
+      let start_time = Instant::now();
       let mut changes_writer = BufWriter::new(fs::File::create(changes_filename.unwrap()).unwrap());
+      let mut old_output_reader =
+        BufReader::with_capacity(8 * 1024 * 1024, fs::File::open(old_output)?);
 
-      let mut csv_reader =
-        BufReader::with_capacity(8 * 1024 * 1024, fs::File::open(input_filename)?);
-
-      for line in csv_reader.by_ref().lines() {
+      for line in old_output_reader.by_ref().lines() {
         let line = line?;
-
         if line.starts_with("#export at") {
           continue;
         }
 
-        let mut origin: InscriptionOutput = serde_json::from_str(&line).unwrap();
-        let new_satpoint =
-          SatPoint::load(*satpoint_table.get(origin.sequence_number)?.unwrap().value());
-        if new_satpoint.outpoint.to_string() != origin.satpoint_outpoint {
+        let old_ord: InscriptionOutput = serde_json::from_str(&line).unwrap();
+        let new_satpoint = SatPoint::load(
+          *num_to_satpoint_table
+            .get(old_ord.sequence_number)?
+            .unwrap()
+            .value(),
+        );
+        let new_address = if new_satpoint.outpoint == unbound_outpoint() {
+          "unbound".to_string()
+        } else {
+          let output_bytes = bcs::to_bytes(&new_satpoint.outpoint.to_string()).unwrap();
+          let address_ret = satpoint_to_address_table.get(output_bytes.as_slice())?;
+          if address_ret.is_none() {
+            "non-standard".to_string()
+          } else {
+            bcs::from_bytes(address_ret.unwrap().value()).unwrap()
+          }
+        };
+
+        if new_satpoint.outpoint.to_string() != old_ord.satpoint_outpoint
+          || new_address != old_ord.address
+          || new_satpoint.offset != old_ord.satpoint_offset
+        {
+          let old_satpoint = format!("{}:{}", old_ord.satpoint_outpoint, old_ord.satpoint_offset);
           let line = format!(
-            "sequence_number: {}, old: {}, new: {}",
-            origin.sequence_number,
-            origin.satpoint_outpoint,
-            new_satpoint.outpoint.to_string()
+            "sequence_number: {}, old_satpoint: {}, new_satpoint: {}, old_address: {}, new_address: {}",
+            old_ord.sequence_number,
+            old_satpoint,
+            new_satpoint.to_string(),
+            old_ord.address,
+            new_address
           );
           writeln!(changes_writer, "{}", line).expect("unable to write data to file");
-
-          origin.satpoint_outpoint = new_satpoint.outpoint.to_string();
-          origin.satpoint_offset = new_satpoint.offset;
-          // get address
-          let mut is_p2pk = false;
-          let address = if new_satpoint.outpoint == unbound_outpoint() {
-            "unbound".to_string()
-          } else {
-            let output_bytes = bcs::to_bytes(&new_satpoint.outpoint.to_string()).unwrap();
-            let rich_address_value = utxo_table.get(output_bytes.as_slice())?;
-            if rich_address_value.is_none() {
-              println!("utxo not found: {}", new_satpoint.outpoint.to_string());
-              "non-standard".to_string()
-            } else {
-              let rich_address: RichAddress =
-                bcs::from_bytes(rich_address_value.unwrap().value()).unwrap();
-              if rich_address.script_type == "p2pk" {
-                is_p2pk = true;
-              }
-              if let Some(address) = rich_address.address {
-                address
-              } else {
-                "non-standard".to_string()
-              }
-            }
-          };
-          origin.is_p2pk = is_p2pk;
-          origin.address = address;
         }
-        let line = serde_json::to_string(&origin).expect("Unable to serialize inscription");
-        writeln!(writer, "{}", line).expect("unable to write data to file");
+        let new_ord = InscriptionOutputVersion2 {
+          sequence_number: old_ord.sequence_number,
+          inscription_number: old_ord.inscription_number,
+          id: old_ord.id,
+          satpoint_outpoint: new_satpoint.outpoint.to_string(),
+          satpoint_offset: new_satpoint.offset,
+          body: old_ord.body,
+          content_encoding: old_ord.content_encoding,
+          content_type: old_ord.content_type,
+          metadata: old_ord.metadata,
+          metaprotocol: old_ord.metaprotocol,
+          parent: old_ord.parent,
+          pointer: old_ord.pointer,
+          address: new_address,
+          rune: old_ord.rune,
+        };
+        let line = serde_json::to_string(&new_ord).expect("Unable to serialize inscription");
+        writeln!(output_writer, "{}", line).expect("unable to write data to file");
+        updated_count += 1;
+        if updated_count % (1024 * 1024) == 0 {
+          println!(
+            "{} inscriptions updated. cost: {:?}",
+            updated_count,
+            start_time.elapsed()
+          );
+        }
       }
       changes_writer.flush()?;
+      println!(
+        "{} inscriptions updated. cost: {:?}",
+        updated_count,
+        start_time.elapsed()
+      );
     }
 
     let range = (gt_sequence, lt_sequence);
@@ -817,43 +850,40 @@ impl Index {
       (None, None) => seq_ins_table.iter()?,
     };
 
+    // export stats counter
+    let mut recorded: u64 = 0;
+    let mut unbound_count: u64 = 0;
+    let mut non_standard_count: u64 = 0;
+    let mut cursed_count: u64 = 0;
+    let mut total_num: u64 = 0;
+    let mut body_none_count: u64 = 0;
+    let report_interval = 1024 * 1024;
+    let mut body_size_hist = Histogram::<u64>::new_with_bounds(1, 4 * 1024 * 1024, 2).unwrap();
+
     for result in entry_range_iter {
       total_num += 1;
       let entry = result?;
       let sequence_number = entry.0.value();
 
       let entry = InscriptionEntry::load(entry.1.value());
-      let satpoint = SatPoint::load(*satpoint_table.get(sequence_number)?.unwrap().value());
+      let satpoint = SatPoint::load(*num_to_satpoint_table.get(sequence_number)?.unwrap().value());
 
       if entry.inscription_number < 0 {
         cursed_count += 1;
       }
 
       // get address
-      let mut is_p2pk = false;
       let address = if satpoint.outpoint == unbound_outpoint() {
         unbound_count += 1;
         "unbound".to_string()
       } else {
         let output_bytes = bcs::to_bytes(&satpoint.outpoint.to_string()).unwrap();
-        let rich_address_value = utxo_table.get(output_bytes.as_slice())?;
-        if rich_address_value.is_none() {
+        let address_ret = satpoint_to_address_table.get(output_bytes.as_slice())?;
+        if address_ret.is_none() {
           non_standard_count += 1;
-          println!("utxo not found: {}", satpoint.outpoint.to_string());
           "non-standard".to_string()
         } else {
-          let rich_address: RichAddress =
-            bcs::from_bytes(rich_address_value.unwrap().value()).unwrap();
-          if rich_address.script_type == "p2pk" {
-            is_p2pk = true;
-            p2pk_count += 1;
-          }
-          if let Some(address) = rich_address.address {
-            address
-          } else {
-            non_standard_count += 1;
-            "non-standard".to_string()
-          }
+          bcs::from_bytes(address_ret.unwrap().value()).unwrap()
         }
       };
 
@@ -867,7 +897,7 @@ impl Index {
             .into_iter()
             .map(|parent_sequence_number| {
               InscriptionEntry::load(
-                seqnum_table
+                num_to_inscription_table
                   .get(parent_sequence_number)
                   .unwrap()
                   .unwrap()
@@ -881,7 +911,7 @@ impl Index {
 
       // make inscription
       let inscription_src = self.get_inscription_by_id(entry.id)?.unwrap();
-      let inscription_out = InscriptionOutput {
+      let inscription_out = InscriptionOutputVersion2 {
         sequence_number,
         inscription_number: entry.inscription_number,
         id: entry.id,
@@ -894,7 +924,6 @@ impl Index {
         metaprotocol: inscription_src.metaprotocol_string(),
         parent: parents,
         pointer: inscription_src.pointer(),
-        is_p2pk,
         address,
         rune: from_commitment(inscription_src.rune),
       };
@@ -912,15 +941,14 @@ impl Index {
       }
 
       let line = serde_json::to_string(&inscription_out).expect("Unable to serialize inscription");
-      writeln!(writer, "{}", line).expect("unable to write data to file");
+      writeln!(output_writer, "{}", line).expect("unable to write data to file");
       recorded += 1;
 
       if recorded % report_interval == 0 {
         println!(
-          "doing. {} inscriptions recorded(cursed: {}, p2pk: {}, unbound: {}, non-standard: {}, 0-body: {}) exported in {:?}.",
+          "doing. {} inscriptions recorded(cursed: {}, unbound: {}, non-standard: {}, 0-body: {}) exported in {:?}.",
           recorded,
           cursed_count,
-          p2pk_count,
           unbound_count,
           non_standard_count,
           body_none_count,
@@ -932,13 +960,12 @@ impl Index {
         break;
       }
     }
-    writer.flush()?;
+    output_writer.flush()?;
 
     println!(
-      "job done. {} recorded(cursed: {}, p2pk: {}, unbound: {}, non-standard: {}, 0-body: {}) exported in {:?}. {} inscriptions(<= gt_sequence included, >= lt_sequence not included) in block heights: [0,{})",
+      "job done. {} recorded(cursed: {}, unbound: {}, non-standard: {}, 0-body: {}) exported in {:?}. {} inscriptions(<= gt_sequence included, >= lt_sequence not included) in block heights: [0,{})",
       recorded,
       cursed_count,
-      p2pk_count,
       unbound_count,
       non_standard_count,
       body_none_count,

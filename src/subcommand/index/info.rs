@@ -48,6 +48,7 @@ mod tests {
   use bitcoin::address::Payload;
   use bitcoin::consensus::encode::serialize_hex;
   use bitcoin::{Address, PublicKey, Script, ScriptBuf};
+  use bitcoincore_rpc::json::Bip125Replaceable::No;
   use hex::encode as hex_encode;
 
   #[test]
@@ -164,5 +165,14 @@ mod tests {
       "{:?}",
       Address::from_script(&script_buf, bitcoin::Network::Bitcoin)
     )
+  }
+
+  #[test]
+  fn bcs_serialize() {
+    let address: Option<String> = None;
+    let serialized = bcs::to_bytes(&address).unwrap();
+    println!("{:?}", serialized);
+    let act_address: Option<String> = bcs::from_bytes(&serialized).unwrap();
+    println!("{:?}", act_address);
   }
 }
