@@ -82,6 +82,8 @@ pretty_assertions = "1.2.1"
 reqwest = { version = "0.11.10", features = ["blocking", "brotli", "json"] }
 mockcore = { path = "crates/mockcore" }
 unindent = "0.2.1"
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+jemallocator = { version = "0.5.4", features = ["unprefixed_malloc_on_supported_platforms", "profiling"] }
 
 [[bin]]
 name = "ord"

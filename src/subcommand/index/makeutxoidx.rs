@@ -35,6 +35,8 @@ impl MakeUTXOIdx {
       let outpoint = satpoint.outpoint;
       bloom.set(&bcs::to_bytes(&outpoint).unwrap());
     }
+    _ = rtx.close();
+    println!("bloom filter build cost: {:?}", start_time.elapsed());
     let mut writer = BufWriter::new(fs::File::create(self.empty_address_output)?);
     let mut bloom_filter_positive_count: u64 = 0;
     let mut empty_address_count: u64 = 0;
@@ -134,17 +136,20 @@ fn derive_utxo_info(line: &str) -> (OutPoint, String, String, String) {
   // script maybe p2pk pubkey/script
   if script_type == "p2pk" {
     let pubkey = match PublicKey::from_str(script.as_str()) {
-      Ok(pubkey) => pubkey,
+      Ok(pubkey) => Some(pubkey),
       Err(_) => {
         // is script
         let script_buf = ScriptBuf::from_hex(script.as_str()).unwrap();
-        script_buf.p2pk_public_key().unwrap()
+        script_buf.p2pk_public_key()
       }
     };
-    let bitcoin_address = bitcoin::Address::p2pkh(&pubkey, Network::Bitcoin);
+    let bitcoin_address_string = match pubkey {
+      Some(pubkey) => Address::p2pkh(&pubkey, Network::Bitcoin).to_string(),
+      None => "".to_string(),
+    };
     return (
       OutPoint::from_str(&output).unwrap(),
-      bitcoin_address.to_string(),
+      bitcoin_address_string,
       script_type,
       script,
     );
