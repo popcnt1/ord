@@ -747,11 +747,7 @@ impl Index {
       .transpose()?
       .map(|(height, _header)| height.value() + 1)
       .unwrap_or(0);
-    writeln!(
-      output_writer,
-      "# export at block height {}, inscriptions in: [0, {})",
-      blocks_indexed, blocks_indexed
-    )?;
+
     let num_to_satpoint_table = rtx.open_table(SEQUENCE_NUMBER_TO_SATPOINT)?;
     let num_to_inscription_table = rtx.open_table(SEQUENCE_NUMBER_TO_INSCRIPTION_ENTRY)?;
     let satpoint_to_address_table = outpoint_address_rtx.open_table(SATPOINT_TO_ADDRESS)?;
@@ -767,9 +763,6 @@ impl Index {
 
       for line in old_output_reader.by_ref().lines() {
         let line = line?;
-        if line.starts_with("#export at") {
-          continue;
-        }
 
         let old_ord: InscriptionOutput = serde_json::from_str(&line).unwrap();
         let new_satpoint = SatPoint::load(
